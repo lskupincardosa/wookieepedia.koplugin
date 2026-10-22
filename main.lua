@@ -76,6 +76,7 @@ end
 -- LEARN: KOReader sends events to every widget, plugins included; a method
 -- named on<EventName> handles it. ReaderReady fires once a book is open.
 function Wookieepedia:onReaderReady()
+    self:runDevHook()
     local props = self.ui.doc_props or {}
     local candidates = { props.title, props.display_title }
     if self.document and self.document.file then
@@ -92,6 +93,23 @@ function Wookieepedia:onReaderReady()
         end
     end
     logger.dbg("Wookieepedia: book not in the reading order:", props.display_title)
+end
+
+-- Development hook (see DEV.md): WOOK_DEV_LOOKUP="Avar Kriss" [WOOK_DEV_FULL=1]
+-- [WOOK_DEV_SHOT=/path/shot.png] runs a lookup after startup and saves a screenshot.
+function Wookieepedia:runDevHook()
+    local term = os.getenv("WOOK_DEV_LOOKUP")
+    if not term then return end
+    UIManager:scheduleIn(1, function()
+        self:lookup(term, { full = os.getenv("WOOK_DEV_FULL") == "1" })
+    end)
+    local shot = os.getenv("WOOK_DEV_SHOT")
+    if shot then
+        UIManager:scheduleIn(tonumber(os.getenv("WOOK_DEV_SHOT_DELAY") or "6"), function()
+            require("device").screen:shot(shot)
+            logger.info("Wookieepedia: dev screenshot saved", shot)
+        end)
+    end
 end
 
 --- Position in the reading order: chosen in the menu, else the last recognised book.
@@ -254,14 +272,28 @@ end
 -- Runs the HTTP request in a subprocess. Returns body, or nil + error code.
 function Wookieepedia:fetch(url, message)
     logger.dbg("Wookieepedia: GET", url)
-    local completed, ok, body = Trapper:dismissableRunInSubprocess(function()
-        return WookApi:httpGet(url, 20, 60)
-    end, message)
+    local completed, ok, body
+    if jit.os == "OSX" then
+        -- LEARN: on macOS a forked child of a GUI app can't use the network
+        -- (Apple's Network framework segfaults "on child side of fork"), so the
+        -- desktop emulator downloads in-process with a plain "loading" message.
+        local info = InfoMessage:new{ text = message }
+        UIManager:show(info)
+        UIManager:forceRePaint()
+        completed = true
+        ok, body = WookApi:httpGet(url, 20, 60)
+        UIManager:close(info)
+    else
+        completed, ok, body = Trapper:dismissableRunInSubprocess(function()
+            return WookApi:httpGet(url, 20, 60)
+        end, message)
+    end
     if not completed then
         return nil, "cancelled"
     end
     if not ok then
-        return nil, body
+        -- A subprocess that died returns nothing at all.
+        return nil, body or "network"
     end
     return body
 end

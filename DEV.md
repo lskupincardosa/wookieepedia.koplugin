@@ -47,6 +47,16 @@ tools/run.sh path/to/book.epub
 - Top-of-screen click or `F1` = menu. The plugin's submenu is in the 🔍 (search) tab as **Wookieepedia**.
 - `PgUp`/`PgDn` or arrow keys turn pages.
 
+### Scripted lookups (no clicking)
+
+A development hook in `main.lua` runs a lookup right after a book opens and can save a screenshot. It is inactive unless the variables are set:
+
+```sh
+WOOK_DEV_LOOKUP="Avar Kriss" WOOK_DEV_FULL=1 WOOK_DEV_SHOT=/tmp/shot.png tools/run.sh
+```
+
+`WOOK_DEV_SHOT_DELAY` sets how many seconds to wait before the screenshot (default 6).
+
 ## Logs and crashes
 
 - Desktop KOReader writes the log to **stdout/stderr**. That is why `tools/run.sh` tees it into `logs/koreader.log`.
@@ -107,4 +117,4 @@ Planets are pages that use `Template:CelestialBody`, are in a planet category an
 
 Why not TextExtracts? Fandom doesn't have that extension (`prop=extracts` returns "Unrecognized value"). `pageprops.fandomdescription` exists, but it is cut off at about 520 characters and contains `[12]` reference marks.
 
-Requests run in a subprocess through `Trapper:dismissableRunInSubprocess`, so the UI stays responsive and a tap cancels them. Offline handling uses `NetworkMgr:willRerunWhenOnline`. On the emulator, KOReader always considers itself online, so test offline errors on the device, or by turning off the Mac's Wi-Fi.
+On e-readers, requests run in a subprocess through `Trapper:dismissableRunInSubprocess`, so the UI stays responsive and a tap cancels them. **On macOS they run in-process instead.** A forked child of a GUI app crashes in Apple's Network framework ("crashed on child side of fork"). The emulator then shows a plain "Looking up…" message, and the download can't be cancelled. If something crashes on the Mac, the system's crash report is in `~/Library/Logs/DiagnosticReports/koreader-*.ips`. Offline handling uses `NetworkMgr:willRerunWhenOnline`. On the emulator, KOReader always considers itself online, so test offline errors on the device, or by turning off the Mac's Wi-Fi.
