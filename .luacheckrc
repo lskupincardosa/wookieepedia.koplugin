@@ -7,4 +7,4 @@ read_globals = {
     "G_reader_settings",
     "G_defaults",
 }
-exclude_files = { "tools/", "samples/" }
+exclude_files = { "tools/", "samples/", "data/" }
