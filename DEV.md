@@ -83,6 +83,17 @@ ffmpeg -i map.jpeg -vf "scale=3000:3000:flags=lanczos,format=gray" -q:v 3 galaxy
 
 To find the grid lines precisely, compare the brightness of each pixel column (or row) inside a dark margin of the image. Grid lines show up as regular peaks. The currently installed StarWars.com/DK map has a grid of 145.55 px per square at 4000 px, with columns C–U at x 617–3383 and rows 1–21 at y 759–3816.
 
+## On the e-reader (Kindle)
+
+The device is a Kindle with KOReader in `/mnt/us/koreader`, reachable over KOReader's SSH server at `root@192.168.178.34`, port 2222. KOReader's data dir there is the KOReader folder itself, so plugin data lives in `/mnt/us/koreader/wookieepedia/` (saved articles, `galaxy_map.jpg` and `galaxy_map.lua`).
+
+```sh
+tools/deploy.sh                     # copy the runtime files and syntax-check them on the device
+ssh -p 2222 root@192.168.178.34     # shell; logs are in /mnt/us/koreader/crash.log
+```
+
+This Mac's key is in `/mnt/us/koreader/settings/SSH/authorized_keys`, so "Login without password" can stay off. After deploying, restart KOReader on the device (☰ → Exit → Restart KOReader).
+
 ## Logs and crashes
 
 - Desktop KOReader writes the log to **stdout/stderr**. That is why `tools/run.sh` tees it into `logs/koreader.log`.
