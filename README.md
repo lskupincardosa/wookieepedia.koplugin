@@ -8,7 +8,7 @@ A [KOReader](https://github.com/koreader/koreader) plugin that looks up Star War
 
 - **Wookieepedia** button in the text-selection popup. Select a name such as "Avar Kriss" and tap it.
 - **Wookieepedia** button in the dictionary popup. Long-press a single word.
-- **Search (🔍) → Wookieepedia** menu: search by typing, toggle the spoiler shield, and manage saved articles.
+- **Search (🔍) → Wookieepedia** menu: search by typing, open the **Galaxy map**, toggle the spoiler shield, and manage saved articles.
 - Shows the article's **intro only** by default, which is quick and keeps spoilers down. **Full article** is one tap away.
 - Follows redirects (*Rey* → *Rey Skywalker*).
 - Offers a pick list for disambiguation pages (*Mace*) and for selections that don't match a title exactly (*avar kriss*).
@@ -18,7 +18,7 @@ A [KOReader](https://github.com/koreader/koreader) plugin that looks up Star War
   - **Intros** show only their first paragraph, which usually says who or what it is. Wookieepedia intros often summarize a character's whole story, so the rest stays behind **Show more**.
   - **Full articles** hide every paragraph sourced from a book, comic or audio drama that comes later in your reading order. Wookieepedia cites the source of nearly every paragraph. Films and TV are always shown, and reference works (Databank, encyclopedias, magazines) don't count either way. The reading position follows the book you open (the High Republic main-story order from the r/Highrepublic wiki), or you can set it in the menu. Hidden parts appear as "[3 paragraphs hidden…]", and **Show hidden** reveals them after you confirm.
 - **Location line and galaxy map** for planets: region, sector, system and grid square, plus a **Map** button. Tap the map to switch views:
-  - **Galaxy:** the whole grid with region names, landmark planets and the planet ringed.
+  - **Galaxy:** the whole grid with region names, landmark planets and the planet ringed. The Unknown Regions in the west are dotted, because they are not one of the rings around the core.
   - **Close-up:** the 5×5 squares around the planet, with the best-known planets in each.
   - **Atlas** (optional): your own map image with the square marked (see DEV.md).
 - Downloads can be cancelled with a tap. If Wi-Fi is off, KOReader offers to turn it on.

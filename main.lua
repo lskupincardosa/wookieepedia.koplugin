@@ -104,7 +104,9 @@ function Wookieepedia:runDevHook()
     local map_grid = os.getenv("WOOK_DEV_MAP")
     UIManager:scheduleIn(1, function()
         if map_grid then
-            local map = require("wookmap"):new{ title = term, location = { grid = map_grid } }
+            -- "none" opens it like the menu entry does, without a planet.
+            local location = map_grid ~= "none" and { grid = map_grid } or nil
+            local map = require("wookmap"):new{ title = term, location = location }
             UIManager:show(map)
             for _ = 1, tonumber(os.getenv("WOOK_DEV_MAP_TAPS") or "0") do map:onTap() end
             return
@@ -172,6 +174,10 @@ function Wookieepedia:addToMainMenu(menu_items)
             {
                 text = _("Search Wookieepedia…"),
                 callback = function() self:showSearchInput() end,
+            },
+            {
+                text = _("Galaxy map"),
+                callback = function() require("wookmap"):show(_("Galaxy map")) end,
             },
             {
                 text = _("Spoiler shield"),

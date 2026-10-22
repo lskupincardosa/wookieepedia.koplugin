@@ -30,11 +30,13 @@ MAIN = {  # Wookieepedia spelling -> map region (the concentric rings)
     "Mid Rim": "Mid Rim", "Mid Rim Territories": "Mid Rim",
     "Outer Rim": "Outer Rim Territories", "Outer Rim Territories": "Outer Rim Territories",
 }
+# The rings around the core, then the Unknown Regions (not a ring: drawn dotted).
 ORDER = ["Deep Core", "Core Worlds", "Colonies", "Inner Rim", "Expansion Region", "Mid Rim",
-         "Outer Rim Territories"]
+         "Outer Rim Territories", "Unknown Regions"]
 SHORT = {"Outer Rim Territories": "Outer Rim", "Expansion Region": "Expansion Reg."}
 LANDMARKS = ["Coruscant", "Tatooine", "Naboo", "Hoth", "Kashyyyk", "Mustafar", "Jakku",
-             "Mandalore", "Lothal", "Scarif", "Kessel", "Dathomir", "Exegol", "Dagobah"]
+             "Mandalore", "Lothal", "Scarif", "Kessel", "Dathomir", "Exegol", "Dagobah",
+             "Csilla", "Ahch-To"]
 
 planets = json.loads((DATA / "planets.json").read_text())
 cols = [chr(c) for c in range(ord(min(p["col"] for p in planets)), ord(max(p["col"] for p in planets)) + 1)]
@@ -47,10 +49,11 @@ by_square = collections.defaultdict(list)
 for p in planets:
     ci, ri = ord(p["col"]) - ord(cols[0]), p["row"] - rmin
     by_square[(ci, ri)].append(p)
-    for r in p["region"]:
-        if r in MAIN:
-            votes[(ci, ri)][MAIN[r]] += 1
-            break
+    ring = next((MAIN[r] for r in p["region"] if r in MAIN), None)
+    if ring:
+        votes[(ci, ri)][ring] += 1
+    elif "Unknown Regions" in p["region"]:
+        votes[(ci, ri)]["Unknown Regions"] += 1
 
 # Smooth raster.
 W, H = ncols * SUB, nrows * SUB
@@ -83,8 +86,10 @@ raster = ["".join(codes[c] if c else "." for c in row) for row in grid]
 labels = []
 for region in ORDER:
     INF = float("inf")
-    dist = [[0 if grid[y][x] != region else INF for x in range(W)] for y in range(H)]
-    if not any(d == INF for row in dist for d in row):
+    # 0 outside the region, 1 on the map edge (labels must not run off it), else unknown.
+    dist = [[0 if grid[y][x] != region else (1 if x in (0, W - 1) or y in (0, H - 1) else INF)
+             for x in range(W)] for y in range(H)]
+    if not any(grid[y][x] == region for y in range(H) for x in range(W)):
         continue
     # Two-pass chamfer distance (cheap, good enough for picking a label spot).
     for y in range(H):
@@ -92,7 +97,6 @@ for region in ORDER:
             if dist[y][x]:
                 if x > 0: dist[y][x] = min(dist[y][x], dist[y][x - 1] + 0.5)
                 if y > 0: dist[y][x] = min(dist[y][x], dist[y - 1][x] + 1)
-            if dist[y][x] == INF and (x == 0 or y == 0): dist[y][x] = 1
     for y in range(H - 1, -1, -1):
         for x in range(W - 1, -1, -1):
             if dist[y][x]:
@@ -135,6 +139,6 @@ out += ["    },", "}", ""]
 (DATA / "galaxy_grid.lua").write_text("\n".join(out))
 
 print(f"{ncols}x{nrows} squares, raster {W}x{H}, {len(labels)} labels, {len(landmarks)} landmarks")
-sym = {"1": "@", "2": "#", "3": "%", "4": "+", "5": "=", "6": "-", "7": ".", ".": " "}
+sym = {"1": "@", "2": "#", "3": "%", "4": "+", "5": "=", "6": "-", "7": ".", "8": "?", ".": " "}
 for row in raster[::SUB // 2]:
     print("".join(sym[c] for c in row[::SUB // 2]))

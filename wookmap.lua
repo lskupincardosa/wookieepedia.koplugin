@@ -44,13 +44,30 @@ local SHADES = {
     Blitbuffer.COLOR_LIGHT_GRAY, -- Expansion Region
     Blitbuffer.COLOR_GRAY_D,     -- Mid Rim
     Blitbuffer.COLOR_GRAY_E,     -- Outer Rim Territories
+    "dots",                      -- Unknown Regions: not a ring around the core, so a pattern
 }
 -- Lighter fills for the close-up, where text sits on top.
 local LIGHT_SHADES = {
     Blitbuffer.COLOR_GRAY_B, Blitbuffer.COLOR_LIGHT_GRAY, Blitbuffer.COLOR_GRAY_D, Blitbuffer.COLOR_GRAY_D,
-    Blitbuffer.COLOR_GRAY_E, Blitbuffer.COLOR_GRAY_E, Blitbuffer.COLOR_WHITE,
+    Blitbuffer.COLOR_GRAY_E, Blitbuffer.COLOR_GRAY_E, Blitbuffer.COLOR_WHITE, "light dots",
 }
 local EDGE = Blitbuffer.COLOR_GRAY_4
+
+-- Dot pattern on white, aligned to absolute pixels so neighbouring rects join up.
+-- The light variant is sparser and paler, for the close-up where text sits on it.
+local function paintDots(bb, x, y, w, h, light)
+    bb:paintRect(x, y, w, h, Blitbuffer.COLOR_WHITE)
+    local step = Screen:scaleBySize(light and 9 or 5)
+    local color = light and Blitbuffer.COLOR_GRAY_9 or Blitbuffer.COLOR_GRAY_5
+    local dot = math.max(1, Screen:scaleBySize(1))
+    for yy = y + (-y) % step, y + h - 1, step do
+        -- Offset every other row, for an even, less grid-like texture.
+        local shift = (math.floor(yy / step) % 2) * math.floor(step / 2)
+        for xx = x + (shift - x) % step, x + w - 1, step do
+            bb:paintRect(xx, yy, dot, dot, color)
+        end
+    end
+end
 
 local grid_data
 local function loadGrid()
@@ -157,7 +174,12 @@ function MapCanvas:paintRaster(bb, ox, oy, cell, c0, c1, r0, r1, shades, outline
             local code = tonumber(row:sub(sx + 1, sx + 1))
             if code then
                 local x0, x1 = px(sx - (c0 - 1) * sub), px(sx - (c0 - 1) * sub + 1)
-                bb:paintRect(ox + x0, oy + y0, x1 - x0, y1 - y0, shades[code])
+                -- type() check: comparing a color (cdata) with a string would call its __eq and crash.
+                if type(shades[code]) == "string" then
+                    paintDots(bb, ox + x0, oy + y0, x1 - x0, y1 - y0, shades[code] == "light dots")
+                else
+                    bb:paintRect(ox + x0, oy + y0, x1 - x0, y1 - y0, shades[code])
+                end
                 -- Region outlines: where the right or lower neighbour differs.
                 local right = outlines and row:sub(sx + 2, sx + 2)
                 if right and sx + 1 < c1 * sub and right ~= tostring(code) then
@@ -327,7 +349,8 @@ function MapCanvas:paintAtlas(bb, x, y)
         end
         local iw, ih = img:getWidth(), img:getHeight()
         -- Crop window centred on the target square, kept inside the image.
-        local span = a.span or 7
+        -- Without a planet, show the whole map.
+        local span = col and (a.span or 7) or ncols + 2
         local ww = math.min(iw, math.floor(span * cw))
         local wh = math.min(ih, math.floor(ww * self.height / self.width))
         local tcx = col and (a.left + (col:byte() - a.first_col:byte() + 0.5) * cw) or iw / 2
@@ -371,12 +394,24 @@ local MODE_HINTS = {
     galaxy = _("Tap the map for a close-up."),
     closeup = _("Close-up of the squares around it. Tap to switch view."),
     atlas = _("Your map image, around the planet. Tap to switch view."),
+    -- Opened from the menu, without a planet:
+    galaxy_only = _("Look up a planet and tap Map to see where it is."),
+    galaxy_no_target = _("Tap to switch to your map image."),
+    atlas_no_target = _("Your map image. Tap to switch view."),
 }
+
+function WookMap:hintFor(mode)
+    if self.location.grid then return MODE_HINTS[mode] end
+    if #self.modes == 1 then return MODE_HINTS.galaxy_only end
+    return MODE_HINTS[mode .. "_no_target"]
+end
 
 function WookMap:init()
     self.grid = loadGrid()
     self.atlas = loadAtlas()
-    self.modes = { "galaxy", "closeup" }
+    -- Opened from the menu there's no planet: no close-up then.
+    self.location = self.location or {}
+    self.modes = self.location.grid and { "galaxy", "closeup" } or { "galaxy" }
     if self.atlas then table.insert(self.modes, "atlas") end
     self.mode_index = 1
 
@@ -394,13 +429,14 @@ function WookMap:init()
         width = width,
         fullscreen = true,
         title = self.title,
-        subtitle = region and T(_("Grid %1 · %2"), self.location.grid, region) or T(_("Grid %1"), self.location.grid),
+        subtitle = not self.location.grid and _("From the planets listed on Wookieepedia")
+            or region and T(_("Grid %1 · %2"), self.location.grid, region) or T(_("Grid %1"), self.location.grid),
         with_bottom_line = true,
         close_callback = function() self:onClose() end,
         show_parent = self,
     }
     self.hint = TextWidget:new{
-        text = MODE_HINTS.galaxy,
+        text = self:hintFor("galaxy"),
         face = Font:getFace("x_smallinfofont"),
         max_width = width - 2 * Screen:scaleBySize(10),
     }
@@ -432,7 +468,7 @@ function WookMap:onTap(_, ges)
     self.mode_index = self.mode_index % #self.modes + 1
     local mode = self.modes[self.mode_index]
     self.canvas.mode = mode
-    self.hint:setText(MODE_HINTS[mode])
+    self.hint:setText(self:hintFor(mode))
     UIManager:setDirty(self, "flashui")
     return true
 end
