@@ -17,14 +17,17 @@ A [KOReader](https://github.com/koreader/koreader) plugin that looks up Star War
 - **Spoiler shield** (on by default), in two layers:
   - **Intros** show only their first paragraph, which usually says who or what it is. Wookieepedia intros often summarize a character's whole story, so the rest stays behind **Show more**.
   - **Full articles** hide every paragraph sourced from a book, comic or audio drama that comes later in your reading order. Wookieepedia cites the source of nearly every paragraph. Films and TV are always shown, and reference works (Databank, encyclopedias, magazines) don't count either way. The reading position follows the book you open (the High Republic main-story order from the r/Highrepublic wiki), or you can set it in the menu. Hidden parts appear as "[3 paragraphs hidden…]", and **Show hidden** reveals them after you confirm.
-- **Location line and galaxy map** for planets: region, sector, system and grid square, plus a **Map** button that marks the square on a schematic galaxy grid.
+- **Location line and galaxy map** for planets: region, sector, system and grid square, plus a **Map** button. Tap the map to switch views:
+  - **Galaxy:** the whole grid with region names, landmark planets and the planet ringed.
+  - **Close-up:** the 5×5 squares around the planet, with the best-known planets in each.
+  - **Atlas** (optional): your own map image with the square marked (see DEV.md).
 - Downloads can be cancelled with a tap. If Wi-Fi is off, KOReader offers to turn it on.
 
 You need Wi-Fi only the first time you look something up. After that the article is saved on the device.
 
-![Galaxy map for Hetzal Prime](docs/map-example.png)
+<img src="docs/map-example.png" width="45%" alt="Galaxy view for Hetzal Prime"> <img src="docs/map-closeup-example.png" width="45%" alt="Close-up view for Hetzal Prime">
 
-The map is generated entirely from data. Each grid square is shaded by the main region that Wookieepedia lists for the planets in it, from about 1,400 canon planets. No official map artwork is used. `tools/build_planet_grid.py` collects the data, and `tools/build_galaxy_grid.py` turns it into `data/galaxy_grid.lua`.
+The galaxy and close-up views are generated entirely from data: the grid squares and regions Wookieepedia lists for about 1,400 canon planets. Region shapes are smoothed from where their planets lie, and close-up lists rank planets by article length. No official map artwork is included. `tools/build_planet_grid.py` and `tools/add_planet_sizes.py` collect the data, and `tools/build_galaxy_grid.py` turns it into `data/galaxy_grid.lua`.
 
 ## Install
 

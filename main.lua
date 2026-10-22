@@ -100,7 +100,15 @@ end
 function Wookieepedia:runDevHook()
     local term = os.getenv("WOOK_DEV_LOOKUP")
     if not term then return end
+    -- WOOK_DEV_MAP="Q-16" [WOOK_DEV_MAP_TAPS=1]: open the map instead, switching views by simulated taps.
+    local map_grid = os.getenv("WOOK_DEV_MAP")
     UIManager:scheduleIn(1, function()
+        if map_grid then
+            local map = require("wookmap"):new{ title = term, location = { grid = map_grid } }
+            UIManager:show(map)
+            for _ = 1, tonumber(os.getenv("WOOK_DEV_MAP_TAPS") or "0") do map:onTap() end
+            return
+        end
         self:lookup(term, { full = os.getenv("WOOK_DEV_FULL") == "1" })
     end)
     local shot = os.getenv("WOOK_DEV_SHOT")

@@ -55,7 +55,26 @@ A development hook in `main.lua` runs a lookup right after a book opens and can 
 WOOK_DEV_LOOKUP="Avar Kriss" WOOK_DEV_FULL=1 WOOK_DEV_SHOT=/tmp/shot.png tools/run.sh
 ```
 
-`WOOK_DEV_SHOT_DELAY` sets how many seconds to wait before the screenshot (default 6).
+`WOOK_DEV_SHOT_DELAY` sets how many seconds to wait before the screenshot (default 6). With `WOOK_DEV_MAP="Q-16"`, the hook opens the map for that square instead, titled with `WOOK_DEV_LOOKUP`. `WOOK_DEV_MAP_TAPS=n` then switches views n times.
+
+### Optional atlas image
+
+The map's third view shows any galaxy map image of your choice with the square marked. Keep it **outside this repo**, because official maps are copyrighted and must never be committed. Put two files in `<koreader data>/wookieepedia/`. On the Mac that is `~/Library/Application Support/koreader/wookieepedia/`; on a Kobo it is `.adds/koreader/wookieepedia/`.
+
+- `galaxy_map.png` (or .jpg): the image
+- `galaxy_map.lua`: where the grid sits in it:
+
+```lua
+return {
+    image = "galaxy_map.png",
+    -- Pixel box of the grid's outer corners in the full-size image:
+    left = 412, top = 280, right = 3610, bottom = 3790,
+    -- Letters and numbers at the edges of that box:
+    first_col = "A", last_col = "U", first_row = 1, last_row = 21,
+}
+```
+
+Large images take memory on an e-reader, so scale them to about twice the screen resolution first.
 
 ## Logs and crashes
 
@@ -110,6 +129,7 @@ The input is the `DATA` array of the High Republic collection from the Star Wars
 
 ```sh
 python3 tools/build_planet_grid.py    # ~3 min, 180 polite API requests → data/planets.json, data/grid_stats.txt
+python3 tools/add_planet_sizes.py     # ~30 requests: article length per planet, for close-up ranking
 python3 tools/build_galaxy_grid.py    # → data/galaxy_grid.lua (+ ASCII preview)
 ```
 
