@@ -143,11 +143,40 @@ local function shouldDrop(name, attrs)
     return false
 end
 
+-- Titles with these prefixes (before the first ":") are not articles.
+local NAMESPACES = {}
+for _, ns in ipairs({
+    "file", "image", "category", "template", "help", "user", "user talk",
+    "talk", "wookieepedia", "forum", "special", "mediawiki", "module",
+    "portal", "index", "message wall", "board", "thread", "blog", "user blog",
+}) do NAMESPACES[ns] = true end
+
+local function isMainNamespace(title)
+    local prefix = match(title, "^([^:]*):")
+    if not prefix then return true end
+    prefix = lower(trim(prefix))
+    -- "Star Wars: Timelines" has a colon but is a normal article.
+    return not (NAMESPACES[prefix] or match(prefix, " talk$") ~= nil)
+end
+
+-- "/wiki/Foo_Bar%C3%A9#x" -> "Foo Baré"; nil if not a /wiki/ link.
+local function hrefToTitle(href)
+    local t = match(decode(href), "^/wiki/([^#?]*)")
+    if not t then return nil end
+    t = gsub(t, "%%(%x%x)", function(h) return char(tonumber(h, 16)) end)
+    t = gsub(t, "_", " ")
+    if t == "" then return nil end
+    return t
+end
+
 --- Single-pass scanner. Calls on_open(name, attrs, is_void),
 -- on_close(name) and on_text(raw_text) for everything that is NOT inside a
 -- dropped element. A stack of open tag names tells us when a dropped element
--- ends.
-local function walk(html, on_open, on_close, on_text)
+-- ends. opts.drop(name, attrs) overrides which elements are dropped;
+-- opts.on_cite(note_id) is called for each citation <sup> (which is dropped).
+local function walk(html, on_open, on_close, on_text, opts)
+    local on_cite = opts and opts.on_cite
+    local drop = opts and opts.drop or shouldDrop
     local stack, sn = {}, 0
     local skip_from -- stack index of the dropped element we are inside
     local pos, len = 1, #html
@@ -211,9 +240,15 @@ local function walk(html, on_open, on_close, on_text)
                     if name == "sup" then
                         -- Drop <sup> holding only a "[n]" citation mark.
                         local s2, e2 = find(html, "</sup>", e, true)
-                        if s2 and s2 - e < 300 then
-                            local inner = decode(gsub(sub(html, e, s2 - 1), "<[^>]*>", ""))
-                            if match(inner, "^%s*%[[^%]]*%]%s*$") then
+                        if s2 and s2 - e < 400 then
+                            local body = sub(html, e, s2 - 1)
+                            local inner = decode(gsub(body, "<[^>]*>", ""))
+                            if find(attrs, "reference", 1, true)
+                                or match(inner, "^%s*%[[^%]]*%]%s*$") then
+                                if on_cite then
+                                    local id = match(body, "href=\"#([^\"]+)\"")
+                                    if id then on_cite(decode(id)) end
+                                end
                                 pos = e2 + 1
                                 handled = true
                             end
@@ -222,7 +257,7 @@ local function walk(html, on_open, on_close, on_text)
                     if not handled then
                         sn = sn + 1
                         stack[sn] = name
-                        if shouldDrop(name, attrs) then
+                        if drop(name, attrs) then
                             skip_from = sn
                         else
                             on_open(name, attrs, false)
@@ -234,42 +269,66 @@ local function walk(html, on_open, on_close, on_text)
     end
 end
 
---- Plain text of an article.
+--- Article as blocks in reading order:
+-- { kind = "heading", level = 2..4, text = "..." } and
+-- { kind = "para", text = "...", cites = { note_id, ... }, list = "li"|"dd"|nil }.
 -- @tparam string html
 -- @tparam[opt] table opts `skip_sections`: array of h2 titles to drop
-function wookhtml.toText(html, opts)
-    if type(html) ~= "string" or html == "" then return "" end
+function wookhtml.toBlocks(html, opts)
+    if type(html) ~= "string" or html == "" then return {} end
     local skip_list = opts and opts.skip_sections or DEFAULT_SKIP_SECTIONS
     local skip_set = {}
     for _, t in ipairs(skip_list) do skip_set[lower(trim(t))] = true end
 
     local buf, n = {}, 0
-    local outk, outt, on = {}, {}, 0 -- output blocks: kind, text
+    local blocks, on = {}, 0
+    local cites, cite_set = {}, {} -- citations seen since the last block
     local depth = 0 -- ul/ol nesting
     local in_dd = false
     local heading -- 2..4 while inside such a heading
     local bullet = false -- next flush in this <li> gets a bullet
     local skipping = false -- inside a skipped h2 section
 
-    local function emit(kind, text)
-        if skipping or text == "" then return end
-        on = on + 1
-        outk[on], outt[on] = kind, text
+    local function resetCites()
+        if #cites > 0 then cites, cite_set = {}, {} end
+    end
+
+    -- list: "li" / "dd" for items that stay tight together in toText.
+    local function emitPara(text, list)
+        if not skipping and text ~= "" then
+            on = on + 1
+            blocks[on] = { kind = "para", text = text, cites = cites, list = list }
+            cites, cite_set = {}, {}
+        else
+            resetCites()
+        end
+    end
+
+    local function onCite(id)
+        if not cite_set[id] then
+            cite_set[id] = true
+            cites[#cites + 1] = id
+        end
     end
 
     local function flush()
-        if n == 0 or heading then return end
+        if heading then return end
+        if n == 0 then
+            resetCites()
+            return
+        end
         local s = collapse(buf, n)
         n = 0
-        if s == "" then return end
-        if depth > 0 then
+        if s == "" then
+            resetCites()
+        elseif depth > 0 then
             local pre = rep("  ", depth - 1) .. (bullet and "\226\128\162 " or "  ")
             bullet = false
-            emit("li", pre .. s)
+            emitPara(pre .. s, "li")
         elseif in_dd then
-            emit("dd", s)
+            emitPara(s, "dd")
         else
-            emit("p", s)
+            emitPara(s)
         end
     end
 
@@ -311,8 +370,12 @@ function wookhtml.toText(html, opts)
                 local s = collapse(buf, n)
                 n = 0
                 if heading == 2 then skipping = skip_set[lower(s)] or false end
+                if not skipping and s ~= "" then
+                    on = on + 1
+                    blocks[on] = { kind = "heading", level = heading, text = s }
+                end
                 heading = nil
-                emit("h", s)
+                resetCites()
             end
         elseif BLOCK[name] then
             flush()
@@ -325,17 +388,26 @@ function wookhtml.toText(html, opts)
         buf[n] = decode(t)
     end
 
-    walk(html, onOpen, onClose, onText)
+    walk(html, onOpen, onClose, onText, { on_cite = onCite })
     flush()
+    return blocks
+end
 
-    -- Join blocks: list/dialogue lines stay together, others get a blank line.
+--- Plain text of an article (see toBlocks for the options).
+function wookhtml.toText(html, opts)
+    return wookhtml.joinBlocks(wookhtml.toBlocks(html, opts))
+end
+
+--- Joins blocks into text: list/dialogue lines stay together, others get a blank line.
+function wookhtml.joinBlocks(blocks)
     local parts = {}
-    for i = 1, on do
+    for i = 1, #blocks do
+        local b = blocks[i]
         if i > 1 then
-            local k, pk = outk[i], outk[i - 1]
-            parts[#parts + 1] = (k == pk and (k == "li" or k == "dd")) and "\n" or "\n\n"
+            local l = b.list
+            parts[#parts + 1] = (l and l == blocks[i - 1].list) and "\n" or "\n\n"
         end
-        parts[#parts + 1] = outt[i]
+        parts[#parts + 1] = b.text
     end
     return concat(parts)
 end
@@ -361,15 +433,8 @@ function wookhtml.listLinks(html)
                 rec.seen_a = true
                 local href = attrValue(attrs, "href")
                 if href then
-                    href = decode(href)
-                    local t = match(href, "^/wiki/([^#?]*)")
-                    if t then
-                        t = gsub(t, "%%(%x%x)", function(h) return char(tonumber(h, 16)) end)
-                        t = gsub(t, "_", " ")
-                        if t ~= "" and not find(t, ":", 1, true) then
-                            rec.title = t
-                        end
-                    end
+                    local t = hrefToTitle(href)
+                    if t and isMainNamespace(t) then rec.title = t end
                 end
             end
         elseif name == "br" and top > 0 then
@@ -404,6 +469,86 @@ function wookhtml.listLinks(html)
         end
     end
     return result
+end
+
+-- Titles that are only a date or year are not worth citing as a source.
+local MONTHS = {}
+for m in ("january february march april may june july august september "
+    .. "october november december"):gmatch("%a+") do MONTHS[m] = true end
+
+local function isDateTitle(t)
+    if match(t, "^%d+$") then return true end
+    if match(t, "^%d[%d,%.]* [AB]BY$") then return true end
+    local month, rest = match(t, "^(%a+)%s*(.*)$")
+    if month and MONTHS[lower(month)] and (rest == "" or match(rest, "^[%d, ]+$")) then
+        return true
+    end
+    local word = match(t, "^%d+ (%a+)$")
+    return word ~= nil and MONTHS[lower(word)] == true
+end
+
+--- Map of note id -> array of cited page titles, read from the reference list.
+-- Prefers links inside <i> (the work's title), else all /wiki/ links.
+function wookhtml.citationSources(html)
+    local map = {}
+    if type(html) ~= "string" or html == "" then return map end
+    local cur -- note being read: { id, all = {}, ital = {}, in_ref, ref_depth, i_depth }
+
+    -- Unlike toText, keep everything except the backlink arrows.
+    local function keep(name, attrs)
+        return find(attrs, "mw-cite-backlink", 1, true) ~= nil
+    end
+
+    local function onOpen(name, attrs)
+        if name == "li" then
+            local id = attrValue(attrs, "id")
+            id = id and decode(id)
+            if id and sub(id, 1, 10) == "cite_note-" then
+                cur = { id = id, all = {}, ital = {}, ref_depth = 0, i_depth = 0 }
+            end
+        elseif not cur then
+            return
+        elseif name == "span" then
+            if cur.in_ref then
+                cur.ref_depth = cur.ref_depth + 1
+            elseif find(attrs, "reference-text", 1, true) then
+                cur.in_ref, cur.ref_depth = true, 1
+            end
+        elseif cur.in_ref and name == "i" then
+            cur.i_depth = cur.i_depth + 1
+        elseif cur.in_ref and name == "a" then
+            local href = attrValue(attrs, "href")
+            local t = href and hrefToTitle(href)
+            if t and isMainNamespace(t) and not isDateTitle(t) then
+                local list = cur.i_depth > 0 and cur.ital or cur.all
+                list[#list + 1] = t
+            end
+        end
+    end
+
+    local function onClose(name)
+        if not cur then return end
+        if name == "span" and cur.in_ref then
+            cur.ref_depth = cur.ref_depth - 1
+            if cur.ref_depth <= 0 then cur.in_ref = false end
+        elseif name == "i" and cur.i_depth > 0 then
+            cur.i_depth = cur.i_depth - 1
+        elseif name == "li" then
+            local src = #cur.ital > 0 and cur.ital or cur.all
+            local out, seen = {}, {}
+            for _, t in ipairs(src) do
+                if not seen[t] then
+                    seen[t] = true
+                    out[#out + 1] = t
+                end
+            end
+            map[cur.id] = out
+            cur = nil
+        end
+    end
+
+    walk(html, onOpen, onClose, function() end, { drop = keep })
+    return map
 end
 
 return wookhtml

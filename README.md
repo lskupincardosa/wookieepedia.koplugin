@@ -14,7 +14,9 @@ A [KOReader](https://github.com/koreader/koreader) plugin that looks up Star War
 - Offers a pick list for disambiguation pages (*Mace*) and for selections that don't match a title exactly (*avar kriss*).
 - Shows plain text for e-ink, without the infobox tables, citation marks, notice boxes or the *Behind the scenes*, *Appearances* and *Sources* sections.
 - **Saved articles:** every article you open is stored on the device. Looking it up again works offline and uses no network. Use **Refresh** to update an article, and clear the saved articles in the menu.
-- **Spoiler shield** (on by default): shows only the first paragraph of the intro, which usually says who or what it is. Wookieepedia intros often summarize a character's whole story, so the rest stays behind **Show more**.
+- **Spoiler shield** (on by default), in two layers:
+  - **Intros** show only their first paragraph, which usually says who or what it is. Wookieepedia intros often summarize a character's whole story, so the rest stays behind **Show more**.
+  - **Full articles** hide every paragraph sourced from a book, comic or audio drama that comes later in your reading order. Wookieepedia cites the source of nearly every paragraph. Films and TV are always shown, and reference works (Databank, encyclopedias, magazines) don't count either way. The reading position follows the book you open (the High Republic main-story order from the r/Highrepublic wiki), or you can set it in the menu. Hidden parts appear as "[3 paragraphs hidden…]", and **Show hidden** reveals them after you confirm.
 - **Location line and galaxy map** for planets: region, sector, system and grid square, plus a **Map** button that marks the square on a schematic galaxy grid.
 - Downloads can be cancelled with a tap. If Wi-Fi is off, KOReader offers to turn it on.
 
@@ -33,7 +35,7 @@ The map is generated entirely from data. Each grid square is shaded by the main 
    - Desktop (macOS): `~/Library/Application Support/koreader/plugins/`
 3. Restart KOReader.
 
-The device needs only the `*.lua` files and `data/galaxy_grid.lua`. `spec/`, `tools/`, `samples/`, `docs/` and `data/planets.json` are for development.
+The device needs only the `*.lua` files and `data/galaxy_grid.lua` and `data/reading_order.lua`. `spec/`, `tools/`, `samples/`, `docs/` and `data/planets.json` are for development.
 
 ## Development
 
@@ -53,11 +55,13 @@ luacheck .         # lint
 | `wookhtml.lua` | Fast HTML → plain-text conversion for article content |
 | `wookcache.lua` | Saved articles for offline lookups |
 | `wookmap.lua` | Galaxy map screen |
+| `wookspoiler.lua` | Spoiler filter: reading position, source classification, paragraph hiding |
+| `data/reading_order.lua` | Generated High Republic reading order with Wookieepedia titles |
 | `data/galaxy_grid.lua` | Generated region shading per grid square |
 
 ## Roadmap
 
-- **Spoiler shield, level 2:** hide paragraphs of full articles that are sourced from books you haven't read yet. Wookieepedia cites nearly every paragraph.
+- **More reading orders** for the spoiler shield (other eras, Legends).
 - **Per-book codex:** collect every name you looked up in a book into a cast list.
 - **Era tag:** show labels such as "High Republic" in the result header.
 - **Galaxy map, level 2:** show nearby planets, and mark every planet that appears in the current book.

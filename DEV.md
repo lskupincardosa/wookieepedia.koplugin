@@ -78,6 +78,24 @@ The fixtures in `spec/fixtures/` are real API responses. Refresh them with `tool
 5. `wookcache.lua` saves every result under `<koreader data>/wookieepedia/`, together with the selected spelling as an alias. Lookups check the saved copy first, so a repeat lookup is offline and instant. **Refresh** forces a new download.
 6. Planet location data (region, sector, system, grid square) comes from `properties.infoboxes` in the same response, and costs no extra request.
 
+### Spoiler filter
+
+- **Full articles** are stored as blocks (headings and paragraphs). Each paragraph keeps its citation note ids, and `citationSources` maps each note to the cited work titles.
+- **Each cited work** is classified once through its categories (one request per 50 titles) as `screen`, `story` or `neutral`. The result is cached in `<data>/wookieepedia/source_kinds.lua`. If a source is unknown while offline, it counts as `story`, which is the strict choice.
+- **A paragraph is hidden** when it cites a `story` source that is not *read*. A source counts as read when every reading-order entry that lists it comes before the current position, so a comic series page shared by several entries counts only once all of them are read.
+  - A paragraph without citations takes the verdict of the paragraph before it.
+  - In the uncited lead, only the first paragraph is shown.
+  - Headings are hidden when anything in their section is hidden.
+- **The position** is detected in `onReaderReady` from the book title or file name, and remembered in `settings/wookieepedia.lua` (`horizon_auto`), or set by hand (`horizon_manual`).
+  - Short match variants ("Convergence") count only when the title also contains "Star Wars" or the series name.
+  - Split entries (Trail of Shadows #1–2, #3, #4–5) resolve to the first one at or after the previous position.
+
+```sh
+python3 tools/build_reading_order.py <reading-order.js>   # → data/reading_order.lua
+```
+
+The input is the `DATA` array of the High Republic collection from the Star Wars Bookshelf page.
+
 ### Galaxy map data
 
 ```sh

@@ -77,6 +77,21 @@ function WookCache:put(entry, aliases)
     return merged
 end
 
+--- Source classification ("screen"/"story"/"neutral") per cited title, shared by all articles.
+function WookCache:kinds()
+    if not self.kinds_file then
+        self.kinds_file = LuaSettings:open(self.dir .. "/source_kinds.lua")
+    end
+    return self.kinds_file:readSetting("kinds", {})
+end
+
+function WookCache:saveKinds(new_kinds)
+    local kinds = self:kinds()
+    for title, kind in pairs(new_kinds) do kinds[title] = kind end
+    self.kinds_file:saveSetting("kinds", kinds)
+    self.kinds_file:flush()
+end
+
 function WookCache:count()
     local n = 0
     for _ in pairs(self.index:readSetting("titles", {})) do n = n + 1 end
@@ -90,6 +105,8 @@ function WookCache:clear()
     self.index:saveSetting("aliases", {})
     self.index:saveSetting("titles", {})
     self.index:flush()
+    os.remove(self.dir .. "/source_kinds.lua")
+    self.kinds_file = nil
 end
 
 return WookCache

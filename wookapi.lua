@@ -173,12 +173,13 @@ end
 --[[--
 Turns an action=parse response body into one of:
 
-    { kind = "article", title =, text =, url =, redirected_from =, location = }
+    { kind = "article", title =, url =, redirected_from =, location =,
+      text = (intro)  or  blocks =, sources = (full article, see wookhtml) }
     { kind = "disambiguation", title =, options = { {title=, text=}, ... } }
     { kind = "missing" }
     { kind = "error", message = }
 ]]
-function WookApi:interpretParse(body)
+function WookApi:interpretParse(body, full)
     local data = decode(body)
     if not data then
         return { kind = "error", message = "invalid response" }
@@ -205,14 +206,60 @@ function WookApi:interpretParse(body)
     if type(parse.redirects) == "table" and parse.redirects[1] then
         redirected_from = parse.redirects[1].from
     end
-    return {
+    local result = {
         kind = "article",
         title = parse.title,
-        text = wookhtml.toText(parse.text),
         url = self:articleUrl(parse.title),
         redirected_from = redirected_from,
         location = self:parseLocation(props.infoboxes),
     }
+    if full then
+        -- Full articles keep paragraph structure and citations for the spoiler filter.
+        result.blocks = wookhtml.toBlocks(parse.text)
+        result.sources = wookhtml.citationSources(parse.text)
+    else
+        result.text = wookhtml.toText(parse.text)
+    end
+    return result
+end
+
+-- Categories of up to 50 pages (the API's limit per request), to tell films from novels.
+function WookApi:categoriesUrl(titles)
+    return self:buildUrl{
+        action = "query",
+        titles = table.concat(titles, "|"),
+        prop = "categories",
+        cllimit = "max",
+        clshow = "!hidden",
+        redirects = 1,
+        format = "json",
+        formatversion = 2,
+    }
+end
+
+--- Returns requested title -> { category names without "Category:" }, or nil.
+--- Titles that redirect are reported under the title we asked for.
+function WookApi:interpretCategories(body)
+    local data = decode(body)
+    if not data or type(data.query) ~= "table" then return end
+    local query = data.query
+    local by_title = {}
+    for _, page in ipairs(query.pages or {}) do
+        local cats = {}
+        for _, c in ipairs(page.categories or {}) do
+            table.insert(cats, (c.title:gsub("^Category:", "")))
+        end
+        by_title[page.title] = cats
+    end
+    -- Map back through "normalized" and "redirects" steps to the requested titles.
+    local result = {}
+    for title, cats in pairs(by_title) do result[title] = cats end
+    for _, step in ipairs{ "redirects", "normalized" } do
+        for _, r in ipairs(query[step] or {}) do
+            if result[r.to] then result[r.from] = result[r.to] end
+        end
+    end
+    return result
 end
 
 -- Returns an array of titles (possibly empty), or nil on a bad response.

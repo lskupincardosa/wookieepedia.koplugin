@@ -118,6 +118,89 @@ test("skip_sections override", function()
     eq(wookhtml.toText(html), "Intro\n\nAlpha\n\na\n\nSub\n\ns\n\nOmega\n\no")
 end)
 
+test("listLinks keeps colon titles, drops namespaces", function()
+    local links = wookhtml.listLinks(
+        "<ul><li><a href=\"/wiki/Star_Wars:_The_Acolyte\">A</a></li>"
+        .. "<li><a href=\"/wiki/The_High_Republic:_Light_of_the_Jedi#X\">B</a></li>"
+        .. "<li><a href=\"/wiki/File:X.png\">C</a></li>"
+        .. "<li><a href=\"/wiki/category:Foo\">D</a></li>"
+        .. "<li><a href=\"/wiki/Forum_talk:Bar\">E</a></li>"
+        .. "<li><a href=\"/wiki/Wookieepedia:Naming_policy\">F</a></li></ul>")
+    eq(#links, 2)
+    eq(links[1].title, "Star Wars: The Acolyte")
+    eq(links[2].title, "The High Republic: Light of the Jedi")
+end)
+
+test("toBlocks cites and kinds", function()
+    local b = wookhtml.toBlocks(
+        "<h2>H</h2><p>A<sup id=\"x\" class=\"reference\"><a href=\"#cite_note-X-1\">"
+        .. "<span>&#91;</span>1<span>&#93;</span></a></sup> b"
+        .. "<sup class=\"reference\"><a href=\"#cite&#95;note-Y-2\">[2]</a></sup>"
+        .. "<sup class=\"reference\"><a href=\"#cite_note-X-1\">[1]</a></sup></p>"
+        .. "<ul><li>I<sup class=\"reference\"><a href=\"#cite_note-Z-3\">[3]</a></sup></li><li>J</li></ul>")
+    eq(#b, 4)
+    eq(b[1].kind, "heading")
+    eq(b[1].level, 2)
+    eq(b[2].text, "A b")
+    eq(table.concat(b[2].cites, ","), "cite_note-X-1,cite_note-Y-2")
+    eq(b[3].text, "\226\128\162 I")
+    eq(b[3].cites[1], "cite_note-Z-3")
+    eq(#b[4].cites, 0)
+end)
+
+test("citationSources unit", function()
+    local m = wookhtml.citationSources(
+        "<ol class=\"references\"><li id=\"cite&#95;note-A-1\"><span class=\"mw-cite-backlink\">"
+        .. "<a href=\"/wiki/Back\">x</a></span> <span class=\"reference-text\">"
+        .. "<a href=\"/wiki/Databank\">D</a> <i><a href=\"/wiki/The_High_Republic:_Light_of_the_Jedi\">L</a></i>"
+        .. " <a href=\"/wiki/232_BBY\">232 BBY</a></span></li>"
+        .. "<li id=\"cite&#95;note-B-2\"><span class=\"reference-text\">"
+        .. "<a href=\"/wiki/Foo_Bar\">F</a> <a href=\"/wiki/December_17\">d</a>"
+        .. " <a href=\"/wiki/File:X\">f</a></span></li></ol>")
+    eq(table.concat(m["cite_note-A-1"], "|"), "The High Republic: Light of the Jedi")
+    eq(table.concat(m["cite_note-B-2"], "|"), "Foo Bar")
+end)
+
+test("avar_kriss_full blocks and sources", function()
+    local html = fixture("avar_kriss_full.json")
+    local t0 = os.clock()
+    local blocks = wookhtml.toBlocks(html)
+    local src = wookhtml.citationSources(html)
+    print(string.format("       toBlocks+citationSources: %.1f ms", (os.clock() - t0) * 1000))
+    local paras, cited, total, resolved = 0, 0, 0, 0
+    for _, b in ipairs(blocks) do
+        if b.kind == "para" then
+            if not b.list then
+                paras = paras + 1
+                if #b.cites > 0 then cited = cited + 1 end
+            end
+            for _, id in ipairs(b.cites) do
+                total = total + 1
+                if src[id] and #src[id] > 0 then resolved = resolved + 1 end
+            end
+        end
+    end
+    print(string.format("       non-list paras with cites: %d/%d; cites resolved: %d/%d (%.1f%%)",
+        cited, paras, resolved, total, 100 * resolved / math.max(total, 1)))
+    assert(cited >= 0.8 * paras, "too few cited paragraphs")
+    assert(resolved == total, "unresolved cite ids")
+    local lotj, comic = false, false
+    for _, titles in pairs(src) do
+        for _, ti in ipairs(titles) do
+            if ti == "The High Republic: Light of the Jedi" then lotj = true end
+            if ti:find("^The High Republic %(2021%) %d+$") then comic = true end
+        end
+    end
+    assert(lotj, "Light of the Jedi missing")
+    assert(comic, "no The High Republic (2021) N")
+    local parts = {}
+    for i, b in ipairs(blocks) do
+        parts[i] = b.text
+    end
+    eq(#blocks > 10, true)
+    eq((wookhtml.toText(html):gsub("%s+", " ")), (table.concat(parts, " "):gsub("%s+", " ")))
+end)
+
 test("performance on 270 KB article", function()
     local html = fixture("starlight_beacon_full.json")
     local t0 = os.clock()

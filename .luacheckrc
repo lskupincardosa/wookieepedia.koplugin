@@ -2,6 +2,7 @@
 std = "luajit"
 unused_args = false
 self = false
+max_line_length = false -- long translatable strings are fine
 -- Globals that KOReader defines at runtime.
 read_globals = {
     "G_reader_settings",
