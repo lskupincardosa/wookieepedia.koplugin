@@ -311,36 +311,48 @@ function MapCanvas:paintCloseup(bb, x, y)
     bb:paintBorder(tx - 1, ty - 1, cell + 3, cell + 3, Screen:scaleBySize(3), Blitbuffer.COLOR_BLACK)
 end
 
+-- The user's map image, cropped to `span` x `span` squares around the planet
+-- (a whole galaxy map is unreadable on a 6" screen), with the square marked.
 function MapCanvas:paintAtlas(bb, x, y)
     local a = self.atlas
+    local col, row = (self.target or ""):match("^(%u)%-(%d+)$")
+    local ncols = a.last_col:byte() - a.first_col:byte() + 1
+    local nrows = a.last_row - a.first_row + 1
+    local cw, ch = (a.right - a.left) / ncols, (a.bottom - a.top) / nrows -- one square, image pixels
     if not self.atlas_bb then
         local img = RenderImage:renderImageFile(a.path, false)
         if not img then
             paintLabel(bb, _("Couldn't open the map image."), self.label_face, x + 10, y + 10)
             return
         end
-        local scale = math.min(self.width / img:getWidth(), self.height / img:getHeight())
-        self.atlas_scale = scale
-        self.atlas_bb = RenderImage:scaleBlitBuffer(img, math.floor(img:getWidth() * scale),
-            math.floor(img:getHeight() * scale), true)
+        local iw, ih = img:getWidth(), img:getHeight()
+        -- Crop window centred on the target square, kept inside the image.
+        local span = a.span or 7
+        local ww = math.min(iw, math.floor(span * cw))
+        local wh = math.min(ih, math.floor(ww * self.height / self.width))
+        local tcx = col and (a.left + (col:byte() - a.first_col:byte() + 0.5) * cw) or iw / 2
+        local tcy = row and (a.top + (tonumber(row) - a.first_row + 0.5) * ch) or ih / 2
+        local x0 = math.max(0, math.min(iw - ww, math.floor(tcx - ww / 2)))
+        local y0 = math.max(0, math.min(ih - wh, math.floor(tcy - wh / 2)))
+        local crop = img:viewport(x0, y0, ww, wh):copy()
+        img:free()
+        local scale = math.min(self.width / ww, self.height / wh)
+        self.atlas_bb = RenderImage:scaleBlitBuffer(crop, math.floor(ww * scale), math.floor(wh * scale), true)
+        self.atlas_scale, self.atlas_x0, self.atlas_y0 = scale, x0, y0
     end
     local iw, ih = self.atlas_bb:getWidth(), self.atlas_bb:getHeight()
     local ix, iy = x + math.floor((self.width - iw) / 2), y + math.floor((self.height - ih) / 2)
     bb:blitFrom(self.atlas_bb, ix, iy, 0, 0, iw, ih)
-    -- Calibration: pixel box of the image's grid and the letters/numbers at its edges.
-    local col, row = (self.target or ""):match("^(%u)%-(%d+)$")
     if not col then return end
-    local ncols = a.last_col:byte() - a.first_col:byte() + 1
-    local nrows = a.last_row - a.first_row + 1
-    local cw = (a.right - a.left) / ncols * self.atlas_scale
-    local ch = (a.bottom - a.top) / nrows * self.atlas_scale
-    local cx = ix + a.left * self.atlas_scale + (col:byte() - a.first_col:byte()) * cw
-    local cy = iy + a.top * self.atlas_scale + (tonumber(row) - a.first_row) * ch
+    local s = self.atlas_scale
+    local sx = ix + (a.left + (col:byte() - a.first_col:byte()) * cw - self.atlas_x0) * s
+    local sy = iy + (a.top + (tonumber(row) - a.first_row) * ch - self.atlas_y0) * s
     local bw = Screen:scaleBySize(3)
-    bb:paintBorder(math.floor(cx) - bw, math.floor(cy) - bw, math.floor(cw) + 2 * bw, math.floor(ch) + 2 * bw,
-        bw, Blitbuffer.COLOR_BLACK)
-    local r = math.floor(math.max(cw, ch) * 1.3)
-    bb:paintCircle(math.floor(cx + cw / 2), math.floor(cy + ch / 2), r, Blitbuffer.COLOR_BLACK, bw)
+    -- White then black frame, visible on dark and light parts of the image.
+    bb:paintBorder(math.floor(sx) - 2 * bw, math.floor(sy) - 2 * bw, math.floor(cw * s) + 4 * bw,
+        math.floor(ch * s) + 4 * bw, bw, Blitbuffer.COLOR_WHITE)
+    bb:paintBorder(math.floor(sx) - bw, math.floor(sy) - bw, math.floor(cw * s) + 2 * bw,
+        math.floor(ch * s) + 2 * bw, bw, Blitbuffer.COLOR_BLACK)
 end
 
 function MapCanvas:free()
@@ -358,7 +370,7 @@ local WookMap = InputContainer:extend{
 local MODE_HINTS = {
     galaxy = _("Tap the map for a close-up."),
     closeup = _("Close-up of the squares around it. Tap to switch view."),
-    atlas = _("Your map image. Tap to switch view."),
+    atlas = _("Your map image, around the planet. Tap to switch view."),
 }
 
 function WookMap:init()

@@ -71,10 +71,17 @@ return {
     left = 412, top = 280, right = 3610, bottom = 3790,
     -- Letters and numbers at the edges of that box:
     first_col = "A", last_col = "U", first_row = 1, last_row = 21,
+    span = 7, -- squares shown across the screen (the view is cropped around the planet)
 }
 ```
 
-Large images take memory on an e-reader, so scale them to about twice the screen resolution first.
+Large images take memory on an e-reader: a 4000 px color image decodes to about 48 MB. Scale the image down and convert it to grayscale first, and scale the calibration numbers by the same factor:
+
+```sh
+ffmpeg -i map.jpeg -vf "scale=3000:3000:flags=lanczos,format=gray" -q:v 3 galaxy_map.jpg
+```
+
+To find the grid lines precisely, compare the brightness of each pixel column (or row) inside a dark margin of the image. Grid lines show up as regular peaks. The currently installed StarWars.com/DK map has a grid of 145.55 px per square at 4000 px, with columns C–U at x 617–3383 and rows 1–21 at y 759–3816.
 
 ## Logs and crashes
 
