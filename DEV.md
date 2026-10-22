@@ -1,0 +1,81 @@
+# Developing wookieepedia.koplugin
+
+The handoff planned a WSL setup. This machine is an Apple Silicon Mac, so the emulator runs natively on macOS instead.
+
+## Layout
+
+| What | Where |
+|---|---|
+| Plugin source (this repo) | `~/Developer/wookieepedia.koplugin` |
+| KOReader emulator (nightly macOS arm64 build) | `~/Developer/koreader-app/KOReader.app` |
+| KOReader source, for reading reference code (tag `v2026.07.1`) | `~/Developer/koreader-src` |
+| KOReader user data (settings, history, plugins) | `~/Library/Application Support/koreader/` |
+| Symlink that loads this plugin | `~/Library/Application Support/koreader/plugins/wookieepedia.koplugin` → this repo |
+
+**Why this plugin directory?** The Mac launcher sets `KO_MULTIUSER`, so `frontend/datastorage.lua` puts the data dir at `~/Library/Application Support/koreader`. `frontend/pluginloader.lua` then scans two folders: the bundle's own `plugins/` and `<datadir>/plugins/`. The second folder is stored in `settings.reader.lua` as `extra_plugin_paths`. The debug log confirms both:
+
+```
+Looking for plugins in directory: plugins
+Looking for plugins in directory: /Users/lucas/Library/Application Support/koreader/plugins/
+RD loaded plugin wookieepedia at /Users/lucas/Library/Application Support/koreader/plugins//wookieepedia.koplugin
+```
+
+The user folder survives app updates. Never put the plugin inside `KOReader.app`.
+
+**Why a nightly build?** Stable releases (v2026.07.1) ship no macOS build, and the Homebrew cask is Linux-only. Nightlies are attached to the GitHub release named `ota`. To update:
+
+```sh
+cd ~/Developer/koreader-app
+gh release download ota --repo koreader/koreader -p 'koreader-macos-11.0-arm64-*' --clobber
+rm -rf KOReader.app && 7zz x koreader-macos-*.7z && rm koreader-macos-*.7z
+```
+
+## The loop
+
+```sh
+tools/run.sh                 # opens samples/lookup-test.epub in debug mode
+tools/run.sh path/to/book.epub
+```
+
+1. Edit the Lua files.
+2. Quit KOReader (close the window, or menu → Exit) and run `tools/run.sh` again. KOReader loads plugins only at startup, so there is no hot reload. The menu's *Exit → Restart KOReader* also works.
+3. Read the log in the terminal or in `logs/koreader.log`. Filter with `grep -i wookieepedia logs/koreader.log`.
+
+### Emulator controls
+- Click = tap. Click and hold, then drag = select text, which opens the highlight popup with the **Wookieepedia** button.
+- Long-press a single word for the dictionary popup. It also has a **Wookieepedia** button.
+- Top-of-screen click or `F1` = menu. The plugin's entry is in the 🔍 (search) tab as **Wookieepedia lookup**.
+- `PgUp`/`PgDn` or arrow keys turn pages.
+
+## Logs and crashes
+
+- Desktop KOReader writes the log to **stdout/stderr**. That is why `tools/run.sh` tees it into `logs/koreader.log`.
+- `crash.log` only exists on e-readers, where the device launcher redirects output into `koreader/crash.log`. Look there when testing on the real device.
+- `-d` enables `logger.dbg(...)` output. Without it, only `info`/`warn`/`err` show up.
+- Errors raised inside plugin event handlers are caught and logged with a stack trace, as `An error occurred while executing handler wookieepedia:...`.
+
+## Tests and lint
+
+```sh
+spec/run.sh        # unit tests for the HTML→text module, run with KOReader's bundled LuaJIT
+luacheck .         # lint (brew install luacheck); config in .luacheckrc
+python3 tools/make_test_epub.py   # rebuild samples/lookup-test.epub
+```
+
+The fixtures in `spec/fixtures/` are real API responses. Refresh them with `tools/fetch_fixtures.sh` if Wookieepedia's markup changes.
+
+## Test books
+
+- `samples/lookup-test.epub`: self-written text with names covering each lookup case: normal article, redirect (*Rey*, *Kriss*), disambiguation (*Mace*, *Ben*), lowercase selection, and not found.
+- `samples/a-princess-of-mars.epub`: a public-domain novel from Project Gutenberg, for general reading and UI testing.
+
+## How the lookup works (v0.1)
+
+1. `action=parse&page=<selection>&section=0&prop=text|properties&redirects=1` makes one request. It returns the lead section's HTML, resolves redirects (`parse.redirects`), flags disambiguation pages (`properties.disambiguation`), and reports missing pages (`error.code = "missingtitle"`).
+2. Missing pages fall back to `list=search`. If the top hit matches case-insensitively, it opens directly. Otherwise a "Did you mean" list appears.
+3. `wookhtml.lua` turns the HTML into plain text. It drops infoboxes, citation marks, notices and the *Behind the scenes*/*Appearances*/*Sources* sections.
+4. **Full article** repeats step 1 without `section=0`.
+
+Why not TextExtracts? Fandom doesn't have that extension (`prop=extracts` returns "Unrecognized value"). `pageprops.fandomdescription` exists, but it is cut off at about 520 characters and contains `[12]` reference marks.
+
+Requests run in a subprocess through `Trapper:dismissableRunInSubprocess`, so the UI stays responsive and a tap cancels them. Offline handling uses `NetworkMgr:willRerunWhenOnline`. On the emulator, KOReader always considers itself online, so test offline errors on the device, or by turning off the Mac's Wi-Fi.
