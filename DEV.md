@@ -44,7 +44,7 @@ tools/run.sh path/to/book.epub
 ### Emulator controls
 - Click = tap. Click and hold, then drag = select text, which opens the highlight popup with the **Wookieepedia** button.
 - Long-press a single word for the dictionary popup. It also has a **Wookieepedia** button.
-- Top-of-screen click or `F1` = menu. The plugin's entry is in the 🔍 (search) tab as **Wookieepedia lookup**.
+- Top-of-screen click or `F1` = menu. The plugin's submenu is in the 🔍 (search) tab as **Wookieepedia**.
 - `PgUp`/`PgDn` or arrow keys turn pages.
 
 ## Logs and crashes
@@ -75,6 +75,17 @@ The fixtures in `spec/fixtures/` are real API responses. Refresh them with `tool
 2. Missing pages fall back to `list=search`. If the top hit matches case-insensitively, it opens directly. Otherwise a "Did you mean" list appears.
 3. `wookhtml.lua` turns the HTML into plain text. It drops infoboxes, citation marks, notices and the *Behind the scenes*/*Appearances*/*Sources* sections.
 4. **Full article** repeats step 1 without `section=0`.
+5. `wookcache.lua` saves every result under `<koreader data>/wookieepedia/`, together with the selected spelling as an alias. Lookups check the saved copy first, so a repeat lookup is offline and instant. **Refresh** forces a new download.
+6. Planet location data (region, sector, system, grid square) comes from `properties.infoboxes` in the same response, and costs no extra request.
+
+### Galaxy map data
+
+```sh
+python3 tools/build_planet_grid.py    # ~3 min, 180 polite API requests → data/planets.json, data/grid_stats.txt
+python3 tools/build_galaxy_grid.py    # → data/galaxy_grid.lua (+ ASCII preview)
+```
+
+Planets are pages that use `Template:CelestialBody`, are in a planet category and are in `Category:Canon articles`. Re-run the crawl occasionally as Wookieepedia grows.
 
 Why not TextExtracts? Fandom doesn't have that extension (`prop=extracts` returns "Unrecognized value"). `pageprops.fandomdescription` exists, but it is cut off at about 520 characters and contains `[12]` reference marks.
 

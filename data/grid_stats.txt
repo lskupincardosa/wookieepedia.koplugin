@@ -1,0 +1,80 @@
+Template used: Template:CelestialBody
+Embedding pages (ns0) seen: 8635
+Canon pages (of those): 2785
+Canon planets seen: 1556
+Canon non-planet pages skipped (moons, stars, ...): 1229
+Canon planets with a valid grid: 1394
+Canon planets without a grid label: 160
+Canon planets with an unparseable grid: 2
+Pages with an unreadable infobox JSON: 0
+Min column: D   Max column: U
+Min row: 1   Max row: 21
+
+Planets per column:
+  D  3
+  E  7
+  F  19
+  G  21
+  H  37
+  I  71
+  J  85
+  K  127
+  L  146
+  M  147
+  N  132
+  O  116
+  P  91
+  Q  94
+  R  124
+  S  107
+  T  44
+  U  23
+
+Planets per row:
+   1  1
+   2  3
+   3  38
+   4  58
+   5  85
+   6  110
+   7  121
+   8  117
+   9  89
+  10  74
+  11  33
+  12  50
+  13  62
+  14  68
+  15  69
+  16  95
+  17  94
+  18  114
+  19  77
+  20  33
+  21  3
+
+Top 20 region names:
+   693  Outer Rim Territories
+   317  The Slice
+   226  Mid Rim Territories
+   111  Western Reaches
+   111  Inner Rim Territories
+    97  Expansion Region
+    97  New Territories
+    74  Core Worlds
+    68  Trailing Sectors
+    58  Wild Space
+    53  Colonies
+    52  Occlusion Zone
+    52  The Interior
+    45  Unknown Regions
+    38  Galactic Frontier
+    35  Greater Javin
+    20  Hutt Space
+    19  Deep Core
+    13  Kashyyyk Region
+     4  Near Perlemian
+
+Unparseable grid strings (up to 20):
+  'K-2 (access point via monolith)'
+  'G-7 (original location)'

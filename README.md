@@ -8,14 +8,21 @@ A [KOReader](https://github.com/koreader/koreader) plugin that looks up Star War
 
 - **Wookieepedia** button in the text-selection popup. Select a name such as "Avar Kriss" and tap it.
 - **Wookieepedia** button in the dictionary popup. Long-press a single word.
-- **Search → Wookieepedia lookup** in the menu, for typing a name by hand.
+- **Search (🔍) → Wookieepedia** menu: search by typing, toggle the spoiler shield, and manage saved articles.
 - Shows the article's **intro only** by default, which is quick and keeps spoilers down. **Full article** is one tap away.
 - Follows redirects (*Rey* → *Rey Skywalker*).
 - Offers a pick list for disambiguation pages (*Mace*) and for selections that don't match a title exactly (*avar kriss*).
 - Shows plain text for e-ink, without the infobox tables, citation marks, notice boxes or the *Behind the scenes*, *Appearances* and *Sources* sections.
+- **Saved articles:** every article you open is stored on the device. Looking it up again works offline and uses no network. Use **Refresh** to update an article, and clear the saved articles in the menu.
+- **Spoiler shield** (on by default): shows only the first paragraph of the intro, which usually says who or what it is. Wookieepedia intros often summarize a character's whole story, so the rest stays behind **Show more**.
+- **Location line and galaxy map** for planets: region, sector, system and grid square, plus a **Map** button that marks the square on a schematic galaxy grid.
 - Downloads can be cancelled with a tap. If Wi-Fi is off, KOReader offers to turn it on.
 
-**An internet connection is needed for every lookup.** Offline caching is planned (see the roadmap).
+You need Wi-Fi only the first time you look something up. After that the article is saved on the device.
+
+![Galaxy map for Hetzal Prime](docs/map-example.png)
+
+The map is generated entirely from data. Each grid square is shaded by the main region that Wookieepedia lists for the planets in it, from about 1,400 canon planets. No official map artwork is used. `tools/build_planet_grid.py` collects the data, and `tools/build_galaxy_grid.py` turns it into `data/galaxy_grid.lua`.
 
 ## Install
 
@@ -26,7 +33,7 @@ A [KOReader](https://github.com/koreader/koreader) plugin that looks up Star War
    - Desktop (macOS): `~/Library/Application Support/koreader/plugins/`
 3. Restart KOReader.
 
-Only the `*.lua` files are needed on the device. `spec/`, `tools/` and `samples/` are for development.
+The device needs only the `*.lua` files and `data/galaxy_grid.lua`. `spec/`, `tools/`, `samples/`, `docs/` and `data/planets.json` are for development.
 
 ## Development
 
@@ -44,14 +51,16 @@ luacheck .         # lint
 | `main.lua` | UI: popup buttons, menu entry, result viewer, error messages |
 | `wookapi.lua` | Requests to the Wookieepedia MediaWiki API and interpretation of responses |
 | `wookhtml.lua` | Fast HTML → plain-text conversion for article content |
+| `wookcache.lua` | Saved articles for offline lookups |
+| `wookmap.lua` | Galaxy map screen |
+| `data/galaxy_grid.lua` | Generated region shading per grid square |
 
 ## Roadmap
 
-- **Lookup cache:** store fetched articles on the device so lookups also work offline.
-- **Spoiler shield:** use an article's appearance list and your reading order to hide content from books you haven't read yet.
+- **Spoiler shield, level 2:** hide paragraphs of full articles that are sourced from books you haven't read yet. Wookieepedia cites nearly every paragraph.
 - **Per-book codex:** collect every name you looked up in a book into a cast list.
 - **Era tag:** show labels such as "High Republic" in the result header.
-- **Galaxy map:** for planets, show the grid square (for example Coruscant, L-9) on a self-made galaxy grid.
+- **Galaxy map, level 2:** show nearby planets, and mark every planet that appears in the current book.
 - **Offline dictionary:** a StarDict dictionary generated from a Wookieepedia dump, for instant long-press lookups without Wi-Fi.
 
 ## License and attribution

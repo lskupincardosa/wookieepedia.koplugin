@@ -8,6 +8,7 @@ action=parse and turn the returned HTML into text with wookhtml.lua.
 
 local JSON = require("json")
 local logger = require("logger")
+local util = require("util")
 local wookhtml = require("wookhtml")
 
 local WookApi = {
@@ -116,10 +117,63 @@ local function decode(body)
     return data
 end
 
+-- Infobox labels we keep, and the field they go to.
+local LOCATION_LABELS = {
+    ["Region"] = "region",
+    ["Sector"] = "sector",
+    ["System"] = "system",
+    ["Grid square"] = "grid",
+}
+
+-- An infobox value is HTML, often a <ul> of several entries: return a list of plain strings.
+local function valueList(html)
+    local list = {}
+    for line in wookhtml.toText(html):gmatch("[^\n]+") do
+        line = util.trim((line:gsub("^%s*•%s*", "")))
+        if line ~= "" then table.insert(list, line) end
+    end
+    return list
+end
+
+--[[--
+Pulls planet location data out of the `infoboxes` page property (a JSON
+string describing Fandom's "portable infobox"). Returns nil when there is none, or
+
+    { region = { "Outer Rim Territories", "The Slice" }, sector = {...},
+      system = {...}, grid = "Q-16" }
+]]
+function WookApi:parseLocation(infoboxes_json)
+    if type(infoboxes_json) ~= "string" then return end
+    local infoboxes = decode(infoboxes_json)
+    if not infoboxes then return end
+    local location = {}
+    local function walk(node)
+        if type(node) ~= "table" then return end
+        if node.type == "data" and type(node.data) == "table" then
+            local field = LOCATION_LABELS[node.data.label]
+            if field and type(node.data.value) == "string" and not location[field] then
+                location[field] = valueList(node.data.value)
+            end
+        end
+        for _, child in pairs(node) do walk(child) end
+    end
+    walk(infoboxes)
+    if location.grid then
+        -- Keep the first square that looks like "L-9".
+        local grid
+        for _, g in ipairs(location.grid) do
+            grid = grid or g:match("^(%u%-%d%d?)")
+        end
+        location.grid = grid
+    end
+    if next(location) == nil then return end
+    return location
+end
+
 --[[--
 Turns an action=parse response body into one of:
 
-    { kind = "article", title =, text =, url =, redirected_from = }
+    { kind = "article", title =, text =, url =, redirected_from =, location = }
     { kind = "disambiguation", title =, options = { {title=, text=}, ... } }
     { kind = "missing" }
     { kind = "error", message = }
@@ -157,6 +211,7 @@ function WookApi:interpretParse(body)
         text = wookhtml.toText(parse.text),
         url = self:articleUrl(parse.title),
         redirected_from = redirected_from,
+        location = self:parseLocation(props.infoboxes),
     }
 end
 
