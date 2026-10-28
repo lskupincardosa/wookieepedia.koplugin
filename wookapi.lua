@@ -14,15 +14,15 @@ local wookhtml = require("wookhtml")
 local WookApi = {
     api_url = "https://starwars.fandom.com/api.php",
     wiki_url = "https://starwars.fandom.com/wiki/",
-    version = "0.1",
+    version = "0.2.0",
 }
 
 -- LEARN: KOReader already sends "KOReader/<version> (...)" as User-Agent
--- (socketutil patches http.USERAGENT). We prepend our own product token so
--- Fandom can tell where the traffic comes from.
+-- (socketutil patches http.USERAGENT). We prepend our own product token and
+-- the project URL, so Fandom can tell where the traffic comes from.
 function WookApi:userAgent()
     local http = require("socket.http")
-    return string.format("wookieepedia.koplugin/%s (+https://github.com/koreader/koreader) %s",
+    return string.format("wookieepedia.koplugin/%s (+https://github.com/lskupincardosa/wookieepedia.koplugin) %s",
         self.version, http.USERAGENT or "")
 end
 

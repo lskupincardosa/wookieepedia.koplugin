@@ -16,7 +16,7 @@ import urllib.parse
 import urllib.request
 
 API = "https://starwars.fandom.com/api.php"
-UA = "wookieepedia.koplugin-data/0.1 (+https://github.com/koreader/koreader)"
+UA = "wookieepedia.koplugin-data/0.1 (+https://github.com/lskupincardosa/wookieepedia.koplugin)"
 BATCH = 50
 SLEEP = 1.0
 MAX_TRIES = 6

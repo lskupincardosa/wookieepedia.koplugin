@@ -1,3 +1,5 @@
 .DS_Store
 *.sdr/
 logs/
+.deploy.env
+dist/

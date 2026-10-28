@@ -1,6 +1,6 @@
 # Developing wookieepedia.koplugin
 
-The handoff planned a WSL setup. This machine is an Apple Silicon Mac, so the emulator runs natively on macOS instead.
+Development happens on an Apple Silicon Mac with KOReader's desktop build as the emulator. Linux works the same way with the Linux AppImage; only the paths below differ.
 
 ## Layout
 
@@ -16,8 +16,8 @@ The handoff planned a WSL setup. This machine is an Apple Silicon Mac, so the em
 
 ```
 Looking for plugins in directory: plugins
-Looking for plugins in directory: /Users/lucas/Library/Application Support/koreader/plugins/
-RD loaded plugin wookieepedia at /Users/lucas/Library/Application Support/koreader/plugins//wookieepedia.koplugin
+Looking for plugins in directory: /Users/<you>/Library/Application Support/koreader/plugins/
+RD loaded plugin wookieepedia at /Users/<you>/Library/Application Support/koreader/plugins//wookieepedia.koplugin
 ```
 
 The user folder survives app updates. Never put the plugin inside `KOReader.app`.
@@ -83,16 +83,17 @@ ffmpeg -i map.jpeg -vf "scale=3000:3000:flags=lanczos,format=gray" -q:v 3 galaxy
 
 To find the grid lines precisely, compare the brightness of each pixel column (or row) inside a dark margin of the image. Grid lines show up as regular peaks. The currently installed StarWars.com/DK map has a grid of 145.55 px per square at 4000 px, with columns C–U at x 617–3383 and rows 1–21 at y 759–3816.
 
-## On the e-reader (Kindle)
+## On the e-reader
 
-The device is a Kindle with KOReader in `/mnt/us/koreader`, reachable over KOReader's SSH server at `root@192.168.178.34`, port 2222. KOReader's data dir there is the KOReader folder itself, so plugin data lives in `/mnt/us/koreader/wookieepedia/` (saved articles, `galaxy_map.jpg` and `galaxy_map.lua`).
+The reference device is a Kindle with KOReader in `/mnt/us/koreader`, reachable over KOReader's SSH server (☰ → Network → SSH server) on port 2222. KOReader's data dir there is the KOReader folder itself, so plugin data lives in `/mnt/us/koreader/wookieepedia/` (saved articles, `galaxy_map.jpg` and `galaxy_map.lua`).
 
 ```sh
+echo 'KOREADER_HOST=192.168.1.50' > .deploy.env   # once: your e-reader's IP (untracked)
 tools/deploy.sh                     # copy the runtime files and syntax-check them on the device
-ssh -p 2222 root@192.168.178.34     # shell; logs are in /mnt/us/koreader/crash.log
+ssh -p 2222 root@192.168.1.50       # shell; logs are in /mnt/us/koreader/crash.log
 ```
 
-This Mac's key is in `/mnt/us/koreader/settings/SSH/authorized_keys`, so "Login without password" can stay off. After deploying, restart KOReader on the device (☰ → Exit → Restart KOReader).
+For a Kobo, pass the KOReader dir too: `tools/deploy.sh <ip> /mnt/onboard/.adds/koreader`. Put your computer's public key in `<koreader>/settings/SSH/authorized_keys`, so "Login without password" can stay off. After deploying, restart KOReader on the device (☰ → Exit → Restart KOReader).
 
 ## Logs and crashes
 
@@ -101,10 +102,17 @@ This Mac's key is in `/mnt/us/koreader/settings/SSH/authorized_keys`, so "Login 
 - `-d` enables `logger.dbg(...)` output. Without it, only `info`/`warn`/`err` show up.
 - Errors raised inside plugin event handlers are caught and logged with a stack trace, as `An error occurred while executing handler wookieepedia:...`.
 
+## Releasing
+
+1. Bump `version` in `wookapi.lua` and add a section to `CHANGELOG.md`.
+2. `spec/run.sh && luacheck .`
+3. `tools/package.sh` builds `dist/wookieepedia.koplugin-<version>.zip` from the file list in `tools/files.sh`.
+4. Commit, then `gh release create v<version> dist/wookieepedia.koplugin-<version>.zip --notes-file <notes>`.
+
 ## Tests and lint
 
 ```sh
-spec/run.sh        # unit tests for the HTML→text module, run with KOReader's bundled LuaJIT
+spec/run.sh        # unit tests (HTML→text, infobox parsing), run with KOReader's bundled LuaJIT; KOREADER_APP overrides the bundle path
 luacheck .         # lint (brew install luacheck); config in .luacheckrc
 python3 tools/make_test_epub.py   # rebuild samples/lookup-test.epub
 ```
@@ -129,7 +137,7 @@ The fixtures in `spec/fixtures/` are real API responses. Refresh them with `tool
 
 The infobox image comes from `properties.infoboxes` too (`WookApi:parseImage`), so finding it costs nothing. The URL is rewritten to `/scale-to-width-down/600`, and Fandom serves a WebP of about 100 KB, which KOReader renders with libwebp. The download happens only when **Portrait** is tapped, and the file is saved in `<data>/wookieepedia/images/`. Articles saved before this feature have no image info until they are refreshed.
 
-Fandom's image server (`static.wikia.nocookie.net`) answered requests from this Mac with a Cloudflare bot-check page (HTTP 403) in October 2026, while the Kindle downloaded the same URL fine. So test portraits on the device. `WookApi:imageType` rejects anything that isn't an image, so a bot-check page is never saved as a picture.
+Fandom's image server (`static.wikia.nocookie.net`) answered requests from the development Mac with a Cloudflare bot-check page (HTTP 403) in October 2026, while the Kindle downloaded the same URL fine. So test portraits on the device. `WookApi:imageType` rejects anything that isn't an image, so a bot-check page is never saved as a picture.
 
 ### Spoiler filter
 

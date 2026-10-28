@@ -3,7 +3,7 @@
 resolved to Wookieepedia page titles (plus title variants to recognise the
 open ebook, including German Jedipedia titles).
 
-Usage: tools/build_reading_order.py [path/to/hr_reading_order.js]
+Usage: tools/build_reading_order.py path/to/hr_reading_order.js
 
 Input is the `const DATA = [...]` literal from the r/Highrepublic wiki
 reading order (treated as data only, parsed with a regex transform to JSON).
@@ -20,11 +20,9 @@ import urllib.request
 
 API = "https://starwars.fandom.com/api.php"
 DE_API = "https://www.jedipedia.net/w/api.php"
-UA = "wookieepedia.koplugin-data/0.1 (+https://github.com/koreader/koreader)"
+UA = "wookieepedia.koplugin-data/0.1 (+https://github.com/lskupincardosa/wookieepedia.koplugin)"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "data", "reading_order.lua")
-DEFAULT_IN = ("/private/tmp/claude-501/-Users-lucas-Downloads/442fa01e-a774-4207-"
-              "be97-7b7b76d342ec/scratchpad/hr_reading_order.js")
 
 # Comic series -> (issue page pattern, series page, issue count or None for ongoing)
 ONGOING = {
@@ -205,7 +203,9 @@ def lq(s):
 
 
 def main():
-    src = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_IN
+    if len(sys.argv) != 2:
+        sys.exit("usage: tools/build_reading_order.py path/to/hr_reading_order.js")
+    src = sys.argv[1]
     rows = flatten(parse_data(src))
 
     # ---- comics: issue pages + series pages

@@ -20,10 +20,10 @@ from collections import Counter
 from html.parser import HTMLParser
 
 API = "https://starwars.fandom.com/api.php"
-UA = "wookieepedia.koplugin-data/0.1 (+https://github.com/koreader/koreader)"
+UA = "wookieepedia.koplugin-data/0.1 (+https://github.com/lskupincardosa/wookieepedia.koplugin)"
 TEMPLATE = "Template:CelestialBody"
 CANON_CAT = "Category:Canon articles"  # the real name; "Canon_articles" normalises to this
-REPO = "/Users/lucas/Developer/wookieepedia.koplugin"
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_DIR = os.path.join(REPO, "data")
 GRID_RE = re.compile(r"^([A-Z])-(\d{1,2})$")
 WANTED = {"grid square": "grid", "region": "region", "sector": "sector", "system": "system"}
