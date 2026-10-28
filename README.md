@@ -17,6 +17,8 @@ A [KOReader](https://github.com/koreader/koreader) plugin that looks up Star War
 - **Spoiler shield** (on by default), in two layers:
   - **Intros** show only their first paragraph, which usually says who or what it is. Wookieepedia intros often summarize a character's whole story, so the rest stays behind **Show more**.
   - **Full articles** hide every paragraph sourced from a book, comic or audio drama that comes later in your reading order. Wookieepedia cites the source of nearly every paragraph. Films and TV are always shown, and reference works (Databank, encyclopedias, magazines) don't count either way. The reading position follows the book you open (the High Republic main-story order from the r/Highrepublic wiki), or you can set it in the menu. Hidden parts appear as "[3 paragraphs hidden…]", and **Show hidden** reveals them after you confirm.
+- **Portrait:** characters, species, ships and most other articles have a **Portrait** button that shows the article's main picture full screen. It is downloaded the first time you tap it and saved with the article.
+- **Species button** on characters: shows the species' picture straight away (*Lourna Dee* → **Twi'lek**). Hybrids get a **Species** button with a choice. Humans get no button.
 - **Location line and galaxy map** for planets: region, sector, system and grid square, plus a **Map** button. Tap the map to switch views:
   - **Galaxy:** the whole grid with region names, landmark planets and the planet ringed. The Unknown Regions in the west are dotted, because they are not one of the rings around the core.
   - **Close-up:** the 5×5 squares around the planet, with the best-known planets in each.

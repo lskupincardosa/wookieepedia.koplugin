@@ -78,6 +78,16 @@ function WookApi:httpGet(url, timeout, maxtime)
     return true, content
 end
 
+--- Image formats KOReader can render. Anything else (e.g. an HTML error or
+--- bot-check page served with status 200) is rejected. Returns the file extension.
+function WookApi:imageType(body)
+    if type(body) ~= "string" then return end
+    if body:sub(1, 4) == "RIFF" and body:sub(9, 12) == "WEBP" then return "webp" end
+    if body:sub(1, 8) == "\137PNG\r\n\26\n" then return "png" end
+    if body:sub(1, 3) == "\255\216\255" then return "jpg" end
+    if body:sub(1, 4) == "GIF8" then return "gif" end
+end
+
 -- Request parameters (separated from the network call so they can run in a subprocess).
 function WookApi:parseUrl(title, full)
     local params = {
@@ -171,9 +181,84 @@ function WookApi:parseLocation(infoboxes_json)
 end
 
 --[[--
+Species of a character, from the infobox's "Species" field: the linked
+articles, in order. Returns nil when there is no such field, or
+
+    { "Twi'lek" }    or, for hybrids,    { "Human", "Zabrak" }
+]]
+function WookApi:parseSpecies(infoboxes_json)
+    if type(infoboxes_json) ~= "string" then return end
+    local infoboxes = decode(infoboxes_json)
+    if not infoboxes then return end
+    local value
+    local function walk(node)
+        if value or type(node) ~= "table" then return end
+        if node.type == "data" and type(node.data) == "table"
+                and node.data.label == "Species" and type(node.data.value) == "string" then
+            value = node.data.value
+            return
+        end
+        for _, child in pairs(node) do walk(child) end
+    end
+    walk(infoboxes)
+    if not value then return end
+    local species, seen = {}, {}
+    -- Citation links point to "#cite_note-…", so only article links match "/wiki/".
+    for href in value:gmatch("<a [^>]*href=\"/wiki/([^\"#?]+)\"") do
+        local title = wookhtml.decode(href)
+            :gsub("%%(%x%x)", function(h) return string.char(tonumber(h, 16)) end)
+            :gsub("_", " ")
+        if not seen[title] and not title:find(":", 1, true) then
+            seen[title] = true
+            table.insert(species, title)
+        end
+    end
+    if #species == 0 then return end
+    return species
+end
+
+-- Portraits are scaled by Fandom's image server to this width: big enough
+-- for a full e-reader screen, about 100 KB as WebP.
+local IMAGE_WIDTH = 600
+
+--[[--
+Pulls the main infobox image (character portrait, species picture, ...) out
+of the `infoboxes` page property. Returns nil when there is none, or
+
+    { name = "AvarKriss-SWULotF.png",
+      url = "https://static.wikia.nocookie.net/.../revision/latest/scale-to-width-down/600?cb=..." }
+]]
+function WookApi:parseImage(infoboxes_json)
+    if type(infoboxes_json) ~= "string" then return end
+    local infoboxes = decode(infoboxes_json)
+    if not infoboxes then return end
+    local found
+    local function walk(node)
+        if found or type(node) ~= "table" then return end
+        if node.type == "image" and type(node.data) == "table" then
+            -- Some infoboxes have tabs (e.g. "Masked"/"Unmasked"): take the first.
+            local first = node.data[1]
+            if type(first) == "table" and type(first.url) == "string" and not first.isVideo then
+                found = first
+                return
+            end
+        end
+        -- ipairs, not pairs: the first image in document order wins.
+        for _, child in ipairs(node) do walk(child) end
+        if type(node.data) == "table" then walk(node.data) end
+        if type(node.value) == "table" then walk(node.value) end
+    end
+    walk(infoboxes)
+    if not found then return end
+    -- ".../revision/latest?cb=1" -> ".../revision/latest/scale-to-width-down/600?cb=1"
+    local url = found.url:gsub("/revision/latest", "/revision/latest/scale-to-width-down/" .. IMAGE_WIDTH, 1)
+    return { name = found.name or found.key, url = url }
+end
+
+--[[--
 Turns an action=parse response body into one of:
 
-    { kind = "article", title =, url =, redirected_from =, location =,
+    { kind = "article", title =, url =, redirected_from =, location =, image =, species =,
       text = (intro)  or  blocks =, sources = (full article, see wookhtml) }
     { kind = "disambiguation", title =, options = { {title=, text=}, ... } }
     { kind = "missing" }
@@ -212,6 +297,8 @@ function WookApi:interpretParse(body, full)
         url = self:articleUrl(parse.title),
         redirected_from = redirected_from,
         location = self:parseLocation(props.infoboxes),
+        image = self:parseImage(props.infoboxes),
+        species = self:parseSpecies(props.infoboxes),
     }
     if full then
         -- Full articles keep paragraph structure and citations for the spoiler filter.

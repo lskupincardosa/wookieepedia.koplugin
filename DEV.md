@@ -125,6 +125,12 @@ The fixtures in `spec/fixtures/` are real API responses. Refresh them with `tool
 5. `wookcache.lua` saves every result under `<koreader data>/wookieepedia/`, together with the selected spelling as an alias. Lookups check the saved copy first, so a repeat lookup is offline and instant. **Refresh** forces a new download.
 6. Planet location data (region, sector, system, grid square) comes from `properties.infoboxes` in the same response, and costs no extra request.
 
+### Portraits
+
+The infobox image comes from `properties.infoboxes` too (`WookApi:parseImage`), so finding it costs nothing. The URL is rewritten to `/scale-to-width-down/600`, and Fandom serves a WebP of about 100 KB, which KOReader renders with libwebp. The download happens only when **Portrait** is tapped, and the file is saved in `<data>/wookieepedia/images/`. Articles saved before this feature have no image info until they are refreshed.
+
+Fandom's image server (`static.wikia.nocookie.net`) answered requests from this Mac with a Cloudflare bot-check page (HTTP 403) in October 2026, while the Kindle downloaded the same URL fine. So test portraits on the device. `WookApi:imageType` rejects anything that isn't an image, so a bot-check page is never saved as a picture.
+
 ### Spoiler filter
 
 - **Full articles** are stored as blocks (headings and paragraphs). Each paragraph keeps its citation note ids, and `citationSources` maps each note to the cited work titles.

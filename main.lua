@@ -330,6 +330,8 @@ function Wookieepedia:doLookup(term, opts, aliases)
             title = result.title,
             url = result.url,
             location = result.location,
+            image = result.image,
+            species = result.species,
             intro = result.text,
             blocks = result.blocks,
             sources = result.sources,
@@ -454,6 +456,25 @@ function Wookieepedia:showArticle(entry, opts)
     if not opts.full then
         table.insert(row, { text = _("Full article"), callback = reopen{ full = true } })
     end
+    if entry.image then
+        table.insert(row, { text = _("Portrait"), callback = function()
+            self:showPortrait(entry)
+        end })
+    end
+    -- Humans need no picture; every other species gets a button with its name.
+    local species = {}
+    for _, title in ipairs(entry.species or {}) do
+        if title ~= "Human" then table.insert(species, title) end
+    end
+    if #species == 1 then
+        table.insert(row, { text = species[1], callback = function()
+            self:showSpeciesPortrait(species[1])
+        end })
+    elseif #species > 1 then
+        table.insert(row, { text = _("Species"), callback = function()
+            self:chooseSpecies(species)
+        end })
+    end
     if entry.location and entry.location.grid then
         table.insert(row, { text = _("Map"), callback = function()
             require("wookmap"):show(entry.title, entry.location)
@@ -470,6 +491,102 @@ function Wookieepedia:showArticle(entry, opts)
         justified = false,
     }
     UIManager:show(viewer)
+end
+
+--- Shows the article's infobox image full screen. It is downloaded on first
+--- use and saved, so it works offline afterwards like the article text.
+function Wookieepedia:showPortrait(entry)
+    local path = self.cache:imagePath(entry.image)
+    if path then
+        return self:showImageFile(entry, path)
+    end
+    Trapper:wrap(function()
+        if NetworkMgr:willRerunWhenOnline(function() self:showPortrait(entry) end) then
+            return
+        end
+        local body, err = self:fetch(entry.image.url, T(_("Downloading picture of %1…"), entry.title))
+        if not body then
+            return self:showError(err)
+        end
+        local ext = WookApi:imageType(body)
+        if not ext then
+            -- Fandom's image server answers some clients with an HTML bot-check page.
+            logger.warn("Wookieepedia: not an image", entry.image.url, body:sub(1, 200))
+            return self:showError("not an image")
+        end
+        path = self.cache:putImage(entry.image, body, ext)
+        if not path then
+            return self:showError("could not save the picture")
+        end
+        self:showImageFile(entry, path)
+    end)
+end
+
+--- Hybrids list several species: pick one.
+function Wookieepedia:chooseSpecies(species)
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local dialog
+    local buttons = {}
+    for _, title in ipairs(species) do
+        table.insert(buttons, {{ text = title, callback = function()
+            UIManager:close(dialog)
+            self:showSpeciesPortrait(title)
+        end }})
+    end
+    dialog = ButtonDialog:new{ title = _("Species"), buttons = buttons }
+    UIManager:show(dialog)
+end
+
+--- Shows a species' picture straight from a character's article. The species
+--- article's intro is downloaded and saved on the way, so looking the species
+--- up afterwards is offline too. Without a picture, the article opens instead.
+function Wookieepedia:showSpeciesPortrait(title)
+    local entry = self.cache:lookup(title)
+    if entry and entry.kind == "article" and entry.image then
+        return self:showPortrait(entry)
+    end
+    Trapper:wrap(function()
+        if NetworkMgr:willRerunWhenOnline(function() self:showSpeciesPortrait(title) end) then
+            return
+        end
+        local body, err = self:fetch(WookApi:parseUrl(title, false),
+            T(_("Looking up %1 on Wookieepedia…"), title))
+        if not body then
+            return self:showError(err)
+        end
+        local result = WookApi:interpretParse(body, false)
+        if result.kind ~= "article" then
+            -- Not a plain article after all (e.g. a disambiguation page): use the normal lookup.
+            return self:lookup(title, { exact = true })
+        end
+        entry = self.cache:put({
+            kind = "article",
+            title = result.title,
+            url = result.url,
+            location = result.location,
+            image = result.image,
+            species = result.species,
+            -- An empty intro isn't saved, so a later lookup fetches the full article as usual.
+            intro = result.text ~= "" and result.text or nil,
+        }, { title })
+        if entry.image then
+            self:showPortrait(entry)
+        else
+            self:lookup(entry.title, { exact = true })
+        end
+    end)
+end
+
+function Wookieepedia:showImageFile(entry, path)
+    local ImageViewer = require("ui/widget/imageviewer")
+    UIManager:show(ImageViewer:new{
+        file = path,
+        fullscreen = true,
+        with_title_bar = true,
+        title_text = entry.title,
+        -- Images on Wookieepedia are mostly official artwork, used there as fair use.
+        caption = T(_("Picture from Wookieepedia: File:%1"), entry.image.name or ""),
+    })
 end
 
 --- Classifies every source the article cites (film/TV, book/comic, neutral).
@@ -569,6 +686,8 @@ end
 local error_messages = {
     timeout = _("Wookieepedia didn't answer in time. Please try again."),
     network = _("Couldn't reach Wookieepedia. Check your Wi-Fi connection."),
+    ["not an image"] = _("Wookieepedia's image server didn't send a picture. Please try again later."),
+    ["http 403"] = _("Wookieepedia's image server refused the download. Please try again later."),
 }
 
 function Wookieepedia:showError(err)

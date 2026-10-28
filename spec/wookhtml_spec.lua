@@ -209,5 +209,54 @@ test("performance on 270 KB article", function()
     print(string.format("       toText: %.1f ms per run on %d KB", per * 1000, #html / 1024))
 end)
 
+-- wookapi needs a few KOReader modules: stub what parseImage/imageType touch.
+package.preload["json"] = function() return json end
+package.preload["logger"] = function() return { warn = function() end, dbg = function() end } end
+package.preload["util"] = function()
+    return { trim = function(s) return (s:gsub("^%s+", ""):gsub("%s+$", "")) end }
+end
+local WookApi = require("wookapi")
+
+local function properties(name)
+    local f = assert(io.open("spec/fixtures/" .. name, "rb"))
+    local data = f:read("*a")
+    f:close()
+    return assert(json.decode(data)).parse.properties
+end
+
+test("infobox portrait: Avar Kriss", function()
+    local image = WookApi:parseImage(properties("avar_kriss_intro.json").infoboxes)
+    assert(image, "no image found")
+    has(image.url, "https://static.wikia.nocookie.net/starwars/images/")
+    has(image.url, "/revision/latest/scale-to-width-down/600")
+    eq(image.name ~= nil, true)
+end)
+
+test("species from the infobox", function()
+    local species = WookApi:parseSpecies(properties("avar_kriss_intro.json").infoboxes)
+    eq(species and species[1], "Human")
+    eq(#species, 1)
+    local hybrid = '[{"data":[{"type":"data","data":{"label":"Species","value":'
+        .. '"<a href=\\"/wiki/Twi%27lek\\" title=\\"Twi&#039;lek\\">Twi\'lek</a>/'
+        .. '<a href=\\"/wiki/Zabrak\\">Zabrak</a><sup class=\\"reference\\">'
+        .. '<a href=\\"#cite_note-1\\">[1]</a></sup>"}}]}]'
+    species = WookApi:parseSpecies(hybrid)
+    eq(species[1], "Twi'lek")
+    eq(species[2], "Zabrak")
+    eq(#species, 2)
+end)
+
+test("infobox portrait: none without infobox", function()
+    eq(WookApi:parseImage(nil), nil)
+    eq(WookApi:parseImage("[]"), nil)
+end)
+
+test("image type sniffing", function()
+    eq(WookApi:imageType("RIFF\0\0\0\0WEBPVP8 "), "webp")
+    eq(WookApi:imageType("\137PNG\r\n\26\n...."), "png")
+    eq(WookApi:imageType("\255\216\255\224"), "jpg")
+    eq(WookApi:imageType("<!DOCTYPE html><html>Just a moment...</html>"), nil)
+end)
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

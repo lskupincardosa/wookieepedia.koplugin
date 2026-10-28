@@ -6,6 +6,7 @@ and costs no network traffic. Layout under <koreader data dir>/wookieepedia/:
 
     index.lua              aliases (what was selected -> article title) and titles
     articles/<md5>.lua     one file per article
+    images/<md5>.<ext>     infobox portraits, downloaded on demand
 
 LEARN: LuaSettings stores a Lua table as a .lua file (the same mechanism as
 KOReader's own settings), so we get reading/writing for free.
@@ -77,6 +78,24 @@ function WookCache:put(entry, aliases)
     return merged
 end
 
+-- Path of a saved portrait (nil if it isn't downloaded yet).
+function WookCache:imagePath(image)
+    local base = string.format("%s/images/%s.", self.dir, md5(image.url))
+    for _, ext in ipairs{ "webp", "png", "jpg", "gif" } do
+        if util.fileExists(base .. ext) then return base .. ext end
+    end
+end
+
+function WookCache:putImage(image, data, ext)
+    util.makePath(self.dir .. "/images")
+    local path = string.format("%s/images/%s.%s", self.dir, md5(image.url), ext)
+    local file = io.open(path, "wb")
+    if not file then return end
+    file:write(data)
+    file:close()
+    return path
+end
+
 --- Source classification ("screen"/"story"/"neutral") per cited title, shared by all articles.
 function WookCache:kinds()
     if not self.kinds_file then
@@ -106,6 +125,7 @@ function WookCache:clear()
     self.index:saveSetting("titles", {})
     self.index:flush()
     os.remove(self.dir .. "/source_kinds.lua")
+    require("ffi/util").purgeDir(self.dir .. "/images")
     self.kinds_file = nil
 end
 
